@@ -21,6 +21,12 @@ agent, with the full payload of each step.
 
 Pages: landing (`/`), how it works as a flowchart (`/how-it-works`), the app (`/app`).
 
+## Where it goes next
+
+Boss is built to manage any shopping agent. Today its three agents are our own, with strategies modelled on how
+Meta's Muse and Instinct source products. Next, Boss sends the same request to the real Muse (over WhatsApp) and
+Instinct (over text), and judges their offers alongside its own agents, with the same audit trail and rules.
+
 ## Sponsor tools we used
 
 - **SingleStore:** the audit trail. Every step is a row in `events`; the agent scoreboard, lessons and the
