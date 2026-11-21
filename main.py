@@ -74,6 +74,30 @@ app = FastAPI(title="Boss")
 _llm_client: AsyncAnthropic | None = None
 
 
+# Provider: Claude when ANTHROPIC_API_KEY is set, otherwise OpenAI (Responses API with built-in web search).
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+PROVIDER = "anthropic" if os.getenv("ANTHROPIC_API_KEY") else ("openai" if OPENAI_KEY else "anthropic")
+OPENAI_AGENT_MODEL = os.getenv("BOSS_OPENAI_AGENT_MODEL", "gpt-4.1-mini")   # fast with web search
+OPENAI_JUDGE_MODEL = os.getenv("BOSS_OPENAI_JUDGE_MODEL", "gpt-4.1")
+
+
+async def openai_respond(prompt: str, model: str, search: bool = False) -> tuple[str, list[str]]:
+    """One OpenAI Responses call. Returns the reply text and the web searches it ran."""
+    body = {"model": model, "input": prompt}
+    if search:
+        body["tools"] = [{"type": "web_search"}]
+    async with httpx.AsyncClient(timeout=150) as client:
+        r = await client.post("https://api.openai.com/v1/responses", json=body,
+                              headers={"Authorization": f"Bearer {OPENAI_KEY}"})
+    data = r.json()
+    if r.status_code != 200:
+        raise RuntimeError((data.get("error") or {}).get("message") or f"OpenAI HTTP {r.status_code}")
+    searches = [(o.get("action") or {}).get("query") for o in data.get("output", []) if o.get("type") == "web_search_call"]
+    text = "".join(c.get("text", "") for o in data.get("output", []) if o.get("type") == "message"
+                   for c in o.get("content", []))
+    return text, [q for q in searches if q]
+
+
 def llm() -> AsyncAnthropic:
     """Created on first use so the page still loads, and the trace shows the failure, without a key."""
     global _llm_client
@@ -397,6 +421,11 @@ def text_of(response) -> str:
 
 async def search_and_answer(run_id: str, name: str, prompt: str, tools: list[dict] | None = None) -> tuple[str, list[str]]:
     """One agent turn with live web search. Each search is logged the moment it runs."""
+    if PROVIDER == "openai":
+        text, searches = await openai_respond(prompt, OPENAI_AGENT_MODEL, search=True)
+        for q in searches:
+            log(run_id, "web_search", name, {"query": q})
+        return text, searches
     messages: list[dict] = [{"role": "user", "content": prompt}]
     searches: list[str] = []
     for _ in range(4):  # the server may pause a long search turn; resume it
@@ -470,9 +499,12 @@ Reply with only a JSON object:
                 "score": 0-100, "reason": str}}],
   "summary": str}}
 Each reason is one plain sentence citing the specific price, date, rule, lesson, or mismatch.
+In "reason" and "summary", call the agents by name: A is Muse, B is Instinct, C is Open web. Never write "Agent A".
 A bid may carry "rerank_score", a relevance score from a reranker; higher means closer to the request.
 When two bids are close, prefer the agent with the better track record and say so.
 If no bid is acceptable, set winner to null and say what to ask the shopper."""
+    if PROVIDER == "openai":
+        return extract_json((await openai_respond(prompt, OPENAI_JUDGE_MODEL))[0])
     resp = await llm().messages.create(
         model=MODEL, max_tokens=8000, output_config={"effort": JUDGE_EFFORT},
         messages=[{"role": "user", "content": prompt}],
@@ -492,8 +524,11 @@ Shopper rules: {rules or "none given"}
 
 Ask only when a missing detail would change what gets bought, such as quantity, size, or which kind
 of item is meant. Do not ask about things the agents can reasonably choose, such as brand or color.
+Assume a quantity of one (one pair, one unit) unless the request says otherwise. When in doubt, the request is clear.
 Reply with only a JSON object: {{"clear": true | false, "question": str}}
 "question" is one short question for the shopper, and an empty string when the request is clear."""
+    if PROVIDER == "openai":
+        return extract_json((await openai_respond(prompt, OPENAI_AGENT_MODEL))[0])
     resp = await llm().messages.create(
         model=MODEL, max_tokens=2000, output_config={"effort": "low"},
         messages=[{"role": "user", "content": prompt}],
@@ -590,9 +625,9 @@ def home():
 
 @app.post("/shop")
 async def shop(body: ShopRequest):
-    if not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("ANTHROPIC_AUTH_TOKEN"):
-        raise HTTPException(503, "Boss can't send the agents: ANTHROPIC_API_KEY is not set in .env. "
-                                 "Add a key from console.anthropic.com (it starts with sk-ant-api03-) and restart.")
+    if not (os.getenv("ANTHROPIC_API_KEY") or OPENAI_KEY):
+        raise HTTPException(503, "Boss can't send the agents: no model key in .env. "
+                                 "Set OPENAI_API_KEY or ANTHROPIC_API_KEY and restart.")
     run_id = body.run_id if body.run_id and re.fullmatch(r"[a-z0-9]{6,32}", body.run_id) else uuid.uuid4().hex[:12]
     log(run_id, "request_received", "user", {"request": body.request, "rules": body.rules})
     await track("request_received", {"run_id": run_id})
