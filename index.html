@@ -111,6 +111,14 @@
   .lane h3 .nm { flex:1; }
   .lane h3 { justify-content:flex-start; }
   .decision { margin-top:8px; border:2px solid var(--accent); }
+  .thread { border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--floor); }
+  .thread-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .thread-head b { flex:1; } .thread-head .mark { width:24px; height:24px; border-radius:6px; }
+  .thread-head .mark.web { display:grid; place-items:center; background:var(--accent); color:#fff; font-size:12px; }
+  .bubble { max-width:85%; padding:9px 12px; border-radius:12px; margin:6px 0; font-size:14px; white-space:pre-wrap; }
+  .bubble .who { font-size:11px; font-weight:700; color:var(--mute); margin-bottom:3px; }
+  .bubble.boss { margin-left:auto; background:var(--accent); color:#fff; } .bubble.boss .who { color:#dfe5ff; }
+  .bubble.them { background:var(--card); border:1px solid var(--line); }
   .hint { font-size:13px; color:var(--mute); margin:6px 0 0; }
 </style>
 </head>
@@ -149,6 +157,11 @@
         <input type="text" id="reason" style="flex:1; min-width:220px">
         <button class="ghost" id="overrule">Overrule and teach</button>
       </div>
+    </div>
+
+    <div class="card" id="convoCard">
+      <h2>Conversations</h2>
+      <div id="convo"><span class="small">Messages between Boss and Muse or Instinct appear here, live.</span></div>
     </div>
 
     <div class="card">
@@ -297,6 +310,30 @@ function renderTrace() {
   }));
 }
 
+function renderConvo() {
+  const msgs = trail.filter(e => ['agent_message_sent', 'agent_message_received', 'agent_status'].includes(e.step));
+  if (!msgs.length) { $('convo').replaceChildren(el('span', 'small', 'Messages between Boss and Muse or Instinct appear here, live.')); return; }
+  const byAgent = {};
+  for (const e of msgs) (byAgent[e.actor] ||= []).push(e);
+  $('convo').replaceChildren(...Object.entries(byAgent).map(([id, evs]) => {
+    const box = el('div', 'thread');
+    const head = el('div', 'thread-head');
+    head.append(LOGOS[id] ? Object.assign(el('img', 'mark'), { src: LOGOS[id], alt: '' }) : el('span', 'mark web', 'W'), el('b', null, nm(id)));
+    const st = evs.filter(e => e.step === 'agent_status').at(-1);
+    const done = evs.some(e => e.step === 'agent_message_received');
+    head.append(el('span', 'pill ' + (done ? 'win' : 'running'), done ? 'replied' : (st ? st.payload.text : 'waiting')));
+    box.append(head);
+    for (const e of evs.filter(e => e.step !== 'agent_status')) {
+      const mine = e.step === 'agent_message_sent';
+      const b = el('div', 'bubble ' + (mine ? 'boss' : 'them'));
+      b.append(el('div', 'who', (mine ? 'Boss' : nm(id)) + ' · ' + (e.created_at || '').replace('T', ' ').slice(11, 19)
+        + (e.payload.seconds ? ' · ' + e.payload.seconds + 's' : '')), el('div', null, e.payload.text));
+      box.append(b);
+    }
+    return box;
+  }));
+}
+
 function setNotice(text) { $('notice').hidden = !text; $('notice').textContent = text || ''; }
 
 function renderDecision() {
@@ -321,7 +358,7 @@ function renderDecision() {
 async function refreshTrail() {
   if (!runId) return;
   trail = await api('/trail/' + runId);
-  renderLanes(); renderTrace(); renderDecision();
+  renderLanes(); renderTrace(); renderDecision(); renderConvo();
 }
 async function loadRun(id) { runId = id; pendingConfirm = false; setNotice(''); await refreshTrail(); }
 

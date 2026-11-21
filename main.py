@@ -51,6 +51,7 @@ WEB_FETCH_TOOL = {"type": os.getenv("BOSS_WEB_FETCH_TYPE", "web_fetch_20260209")
 VERIFY_CHECKOUT = os.getenv("BOSS_VERIFY_CHECKOUT", "1") != "0"   # re-check price and stock before approval
 ASK_WHEN_VAGUE = os.getenv("BOSS_ASK_WHEN_VAGUE", "1") != "0"     # ask instead of guessing on vague requests
 PRICE_JUMP_USD = float(os.getenv("BOSS_PRICE_JUMP_USD", "5"))     # a rise this large needs the shopper's yes
+MUSE_ON = os.getenv("MUSE_ENABLED", "0") == "1"                   # agent A is the shopper's real Muse
 COGNEE_ON = os.getenv("COGNEE_ENABLED", "0") == "1"                # long-term memory, optional
 COGNEE_URL, COGNEE_KEY = os.getenv("COGNEE_SERVICE_URL"), os.getenv("COGNEE_API_KEY")
 SIE_KEY = os.getenv("SIE_API_KEY")                                 # Superlinked SIE reranker, optional
@@ -169,7 +170,8 @@ def events(run_id: str | None = None, step: str | None = None, limit: int = 500,
     sql = "SELECT run_id, step, actor, payload, created_at FROM events"
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += f" ORDER BY id {'DESC' if newest_first else 'ASC'} LIMIT {int(limit)}"
+    order = "DESC" if newest_first else "ASC"  # ids are not time-ordered across SingleStore partitions
+    sql += f" ORDER BY created_at {order}, id {order} LIMIT {int(limit)}"
     with _db() as conn, conn.cursor() as cur:
         cur.execute(sql, tuple(params))
         out = []
@@ -455,11 +457,50 @@ async def search_and_answer(run_id: str, name: str, prompt: str, tools: list[dic
     raise RuntimeError("search did not finish")
 
 
+async def muse_agent(run_id: str, request: str, learned: list[str]) -> dict:
+    """Agent A as the shopper's real Muse: Boss sends the order, logs every message, reads the bid."""
+    import muse
+    log(run_id, "agent_started", "A", {"strategy": "The shopper's own Muse (Meta), driven by Boss", "via": "muse.ai"})
+    started = time.monotonic()
+    order = (f"{request}\n\n"
+             + (f"Things I've told you before: {'; '.join(learned)}\n\n" if learned else "")
+             + "Shopping research only, please don't buy anything or contact anyone. Find ONE product I can buy "
+               "right now. Reply with: product name, exact variant, price, seller, the full product URL "
+               "written out as plain text, and delivery estimate.")
+
+    def on_event(kind: str, data: dict) -> None:
+        step = {"sent": "agent_message_sent", "received": "agent_message_received", "status": "agent_status"}[kind]
+        log(run_id, step, "A", {"agent": "Muse", **data})
+
+    try:
+        out = await muse.ask(order, on_event=on_event)
+        extract = f"""Muse, a shopping agent, replied to an order. Turn its reply into one bid.
+Order: {request}
+Muse's reply:
+{out["reply"][:6000]}
+Links on the page: {json.dumps(out["links"])}
+Reply with only a JSON object: {{"title": str, "price_usd": number, "seller": str, "url": str,
+  "delivery": str, "variant": str, "why": str}}
+Use only what Muse said. Pick the product link that matches the seller. If Muse gave no product, return {{"error": "reason"}}."""
+        bid = extract_json((await openai_respond(extract, OPENAI_JUDGE_MODEL))[0]) if PROVIDER == "openai" \
+            else extract_json(text_of(await llm().messages.create(model=MODEL, max_tokens=2000,
+                                                                   messages=[{"role": "user", "content": extract}])))
+    except Exception as exc:
+        bid = {"error": f"Muse failed: {exc}"}
+    bid.update(agent="A", strategy="The shopper's own Muse", source="muse", searches=[],
+               duration_ms=round((time.monotonic() - started) * 1000))
+    log(run_id, "bid_submitted", "A", bid)
+    return bid
+
+
 async def buying_agent(run_id: str, name: str, strategy: str, request: str, learned: list[str]) -> dict:
     """A real buying agent: live web search, one real product, real link."""
+    if name == "A" and MUSE_ON:
+        return await muse_agent(run_id, request, learned)
     log(run_id, "agent_started", name, {"strategy": strategy})
     started = time.monotonic()
     prompt = f"""You are buying agent {name}. Your strategy: {strategy}
+Today is {datetime.now().strftime("%A, %B %d, %Y")}. Only report delivery dates from today onward.
 
 Shopping request: {request}
 Lessons from this shopper's past rejections (respect them): {json.dumps(learned) if learned else "none yet"}
@@ -484,6 +525,8 @@ Never invent a product, price, or link. If you find nothing, return {{"error": "
 
 async def judge(request: str, rules: str, bids: list[dict], board: list[dict], learned: list[str]) -> dict:
     prompt = f"""You are Boss. You work only for the shopper. Three buying agents sent bids.
+Today is {datetime.now().strftime("%A, %B %d, %Y")}. A delivery date before today is stale information:
+reject that bid and say the date is in the past.
 Pick the bid the shopper would pick, and reject any bid that breaks a rule or a lesson,
 misses the request (wrong size, wrong item, over budget), or has an error.
 
