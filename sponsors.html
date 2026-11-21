@@ -1,91 +1,58 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Boss: sponsor integrations</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boss: what powers it</title>
+<link rel="stylesheet" href="/static/site.css">
 <style>
-  :root { --ink:#16181d; --muted:#5d6472; --line:#e4e6eb; --ok:#1f7a4d; --fail:#b42318; --off:#8a8f98; }
-  * { box-sizing:border-box }
-  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#f7f7f8 }
-  main { max-width:960px; margin:0 auto; padding:48px 20px }
-  h1 { font-size:28px; margin:0 0 6px }
-  .sub { color:var(--muted); margin:0 0 28px }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:14px }
-  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px }
-  .card.off { opacity:.65 }
-  .card header { display:flex; justify-content:space-between; align-items:center; gap:8px }
-  h2 { font-size:17px; margin:0 }
-  .pill { font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; color:#fff; white-space:nowrap }
-  .pill.ok { background:var(--ok) } .pill.fail { background:var(--fail) } .pill.off { background:var(--off) }
-  .prize { font-weight:600; color:var(--muted); margin:6px 0 10px; font-size:13px }
-  dl { margin:12px 0 0; display:grid; grid-template-columns:78px 1fr; gap:4px 8px; font-size:13px }
-  dt { color:var(--muted) } dd { margin:0; word-break:break-word }
-  code { font-size:12px; background:#f1f2f4; padding:1px 5px; border-radius:4px }
-  footer { color:var(--muted); font-size:13px; margin-top:28px }
-</style></head>
-<body><main>
-  <h1>Boss: sponsor integrations</h1>
-  <p class="sub">Cash and Visa prize sponsors only. 5 of 6 connected, checked live on 2026-11-20 16:04
-  by <code>python check_sponsors.py</code>, which regenerates this page.</p>
-  <section class="grid">
-      <article class="card ok">
-        <header><h2>SingleStore</h2><span class="pill ok">Connected</span></header>
-        <p class="prize">$1,000 / $750 / $500 gift cards of your choice</p>
-        <p>The audit trail. Every agent step, bid, verdict, approval and overrule is a row in `events`. The scoreboard, lessons and /analytics are SQL over that table.</p>
-        <dl>
-          <dt>Code</dt><dd><code>main.py: log(), events(), scoreboard(), lessons(), _analytics_sql()</code></dd>
-          <dt>Config</dt><dd><code>SINGLESTORE_URL</code></dd>
-          <dt>Live check</dt><dd>events table live: 0 rows across 0 runs; bids by agent {} &middot; 2.14s</dd>
-        </dl>
-      </article>
-      <article class="card ok">
-        <header><h2>Amplitude</h2><span class="pill ok">Connected</span></header>
-        <p class="prize">$1,000 / $500 cash (with Statsig)</p>
-        <p>Decision analytics. Boss sends bid_won, bid_rejected, user_rejected and order_approved events.</p>
-        <dl>
-          <dt>Code</dt><dd><code>main.py: track()</code></dd>
-          <dt>Config</dt><dd><code>AMPLITUDE_API_KEY</code></dd>
-          <dt>Live check</dt><dd>HTTP 200, events_ingested=1 &middot; 0.42s</dd>
-        </dl>
-      </article>
-      <article class="card ok">
-        <header><h2>Superlinked SIE Serverless</h2><span class="pill ok">Connected</span></header>
-        <p class="prize">$500 cash + $500 credits (x2 categories)</p>
-        <p>Reranks every real bid against the request and rules before the judge sees it; logged as bids_reranked.</p>
-        <dl>
-          <dt>Code</dt><dd><code>main.py: rerank_bids(), _sie_scores()</code></dd>
-          <dt>Config</dt><dd><code>SIE_API_KEY, SIE_RERANK_MODEL</code></dd>
-          <dt>Live check</dt><dd>rerank via Qwen/Qwen3-Reranker-0.6B: on-budget bid 0.995 vs over-budget 0.266 &middot; 0.82s</dd>
-        </dl>
-      </article>
-      <article class="card ok">
-        <header><h2>Cognee</h2><span class="pill ok">Connected</span></header>
-        <p class="prize">$500 / $250 cash + credits</p>
-        <p>Long-term memory. Overrule lessons are remembered; each new request recalls relevant memories for the agents and the judge, logged as memory_recalled.</p>
-        <dl>
-          <dt>Code</dt><dd><code>main.py: memory_recall(), memory_remember()</code></dd>
-          <dt>Config</dt><dd><code>COGNEE_ENABLED, COGNEE_SERVICE_URL, COGNEE_API_KEY</code></dd>
-          <dt>Live check</dt><dd>Cognee Cloud reachable, datasets [&#x27;default_dataset&#x27;, &#x27;main_dataset&#x27;]; app memory ON &middot; 0.58s</dd>
-        </dl>
-      </article>
-      <article class="card ok">
-        <header><h2>Firedrill</h2><span class="pill ok">Connected</span></header>
-        <p class="prize">$500 / $300 / $200 prepaid Visa + credits</p>
-        <p>Drills that prove Boss cannot be fooled: price jump, wrong size, out of stock, vague request.</p>
-        <dl>
-          <dt>Code</dt><dd><code>drills.py, Firedrill CLI + MCP (.mcp.json)</code></dd>
-          <dt>Config</dt><dd><code>browser sign-in (no key)</code></dd>
-          <dt>Live check</dt><dd>CLI signed in, workspace &#x27;Boss&#x27; &middot; 2.99s</dd>
-        </dl>
-      </article>
-      <article class="card off">
-        <header><h2>Airbyte</h2><span class="pill off">Not used</span></header>
-        <p class="prize">$1,000 / $500 / $250 Visa gift cards</p>
-        <p>Not connected. The context layer needs an org admin to enable agent access.</p>
-        <dl>
-          <dt>Code</dt><dd><code>-</code></dd>
-          <dt>Config</dt><dd><code>-</code></dd>
-          <dt>Live check</dt><dd>not integrated</dd>
-        </dl>
-      </article>
+  .powers { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; perspective:1100px; }
+  .power { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:var(--lift);
+           transform:rotateX(4deg); transform-origin:50% 100%; }
+  .power h2 { margin:0 0 10px; height:44px; display:flex; align-items:center; }
+  .power .logo { max-height:40px; max-width:200px; object-fit:contain; }
+  @media (prefers-color-scheme: dark) { .power .logo { background:#fff; padding:4px 8px; border-radius:6px; } }
+  .power .job { margin:0 0 12px; font-weight:700; color:var(--accent); }
+  .power p { margin:0; color:var(--mute); }
+</style>
+</head>
+<body>
+<nav>
+  <a class="brand" href="/">Boss</a>
+  <a href="/how-it-works">How it works</a>
+  <a class="btn" href="/app">Open Boss</a>
+</nav>
+<main>
+  <h1 style="max-width:16ch;margin-top:24px">What powers Boss</h1>
+  <p class="lede">Each one does a real job in every run.</p>
+  <section class="powers">
+    <article class="power">
+      <h2><img src="/static/logos/singlestore.png" alt="SingleStore" class="logo"></h2>
+      <p class="job">Keeps the record</p>
+      <p>Every search, bid, verdict, approval and overrule is saved. The agent scoreboard and the analytics come straight from it.</p>
+    </article>
+    <article class="power">
+      <h2><img src="/static/logos/cognee.png" alt="Cognee" class="logo"></h2>
+      <p class="job">Remembers you</p>
+      <p>Your lessons and approved orders become memories. Before each run, Boss briefs the agents with the ones that matter.</p>
+    </article>
+    <article class="power">
+      <h2><img src="/static/logos/superlinked.png" alt="Superlinked SIE" class="logo"></h2>
+      <p class="job">Ranks the bids</p>
+      <p>Scores every offer against what you asked for, so a cheap but wrong product cannot win on price alone.</p>
+    </article>
+    <article class="power">
+      <h2><img src="/static/logos/amplitude.png" alt="Amplitude" class="logo"></h2>
+      <p class="job">Measures every decision</p>
+      <p>Each step of each run becomes an event, so you can see which agent wins, how fast, and how often you overrule it.</p>
+    </article>
+    <article class="power">
+      <h2><img src="/static/logos/firedrill.png" alt="Firedrill" class="logo"></h2>
+      <p class="job">Tests Boss before money moves</p>
+      <p>Drills try to trick Boss with a price jump, the wrong size, a sold-out seller and a vague request.</p>
+    </article>
   </section>
-  <footer>Every status above comes from a real call to that service with the app's own config. No keys are shown.</footer>
-</main></body></html>
+</main>
+<footer>Boss. Built at the Personal Agents Hackathon, San Francisco.</footer>
+</body>
+</html>

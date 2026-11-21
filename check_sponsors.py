@@ -1,6 +1,6 @@
-"""Live check of every cash-prize sponsor Boss connects to. Writes sponsors.html from real results.
+"""Live check of every sponsor Boss connects to. Prints one line per sponsor.
 
-Run:  python check_sponsors.py          (prints results, writes sponsors.html)
+Run:  python check_sponsors.py
 
 Reads keys from .env exactly like main.py. Never prints a secret.
 """
@@ -185,8 +185,7 @@ def main():
   <footer>Every status above comes from a real call to that service with the app's own config. No keys are shown.</footer>
 </main></body></html>
 """
-    (ROOT / "sponsors.html").write_text(page)
-    print(f"\nwrote sponsors.html ({connected}/{len(results)} connected)")
+    print(f"\n{connected}/{len(results)} connected")
 
 
 if __name__ == "__main__":

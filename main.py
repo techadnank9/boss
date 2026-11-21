@@ -567,6 +567,11 @@ def landing():
     return FileResponse(os.path.join(HERE, "landing.html"))
 
 
+@app.get("/sponsors")
+def sponsors():
+    return FileResponse(os.path.join(HERE, "sponsors.html"))
+
+
 @app.get("/how-it-works")
 def how_it_works():
     return FileResponse(os.path.join(HERE, "how.html"))
