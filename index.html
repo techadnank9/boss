@@ -347,7 +347,8 @@ function renderDecision() {
     setNotice('Add the answer to your request above and send the agents again.');
   } else {
     winner = d.payload.winner;
-    $('summary').textContent = (winner ? nm(winner) + ' wins. ' : 'No acceptable bid. ') + (d.payload.summary || '');
+    const sum = d.payload.summary || '';
+    $('summary').textContent = sum.startsWith(nm(winner)) ? sum : (winner ? nm(winner) + ' wins. ' : 'No acceptable bid. ') + sum;
   }
   const approved = trail.some(e => e.step === 'order_approved');
   $('approve').disabled = !winner || approved;
@@ -360,7 +361,7 @@ async function refreshTrail() {
   trail = await api('/trail/' + runId);
   renderLanes(); renderTrace(); renderDecision(); renderConvo();
 }
-async function loadRun(id) { runId = id; pendingConfirm = false; setNotice(''); await refreshTrail(); }
+async function loadRun(id) { runId = id; history.replaceState(null, '', '#' + id); pendingConfirm = false; setNotice(''); await refreshTrail(); }
 
 $('go').onclick = async () => {
   const request = $('request').value.trim();
@@ -411,6 +412,7 @@ $('rules').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
 (async () => {
   const state = await api('/state');
   agents = state.agents; renderBoard(state.scoreboard); renderLessons(state.lessons); renderLanes(); renderTrace(); await renderRuns(); await renderAnalytics();
+  if (location.hash.length > 1) await loadRun(location.hash.slice(1));
 })().catch(err => { $('error').textContent = err.message; });
 </script>
 </body>
