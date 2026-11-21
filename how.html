@@ -14,19 +14,19 @@
   <a class="btn" href="/app">Open Boss</a>
 </nav>
 <main>
-  <h1 style="max-width:16ch;margin-top:24px">How Boss runs your buying agents</h1>
-  <p class="lede">One request goes in. Boss runs the agents on its own. You make the final call.</p>
+  <h1 style="max-width:18ch;margin-top:24px">How Boss runs all your agents</h1>
+  <p class="lede">One order in. Boss runs every agent. You make the final call.</p>
   <div class="fc" role="img" aria-label="Flow: you send a request; Boss briefs three agents with memory; the agents search the live web and bid; SIE reranks the bids; Boss judges; you approve or overrule; overrules become lessons that loop back to Boss. Every step is recorded in SingleStore and Amplitude.">
     <div class="fc-main">
       <div class="node you"><b>You</b><span>Request + your rules</span></div>
       <div class="arrow"></div>
-      <div class="node boss"><b>Boss briefs the agents</b><span>Track record + lessons + matching memories</span>
+      <div class="node boss"><b>Boss sends your order to every agent</b><span>Track record + lessons + matching memories</span>
         <em>Cognee &middot; SingleStore</em></div>
       <div class="fan"></div>
       <div class="agents3">
-        <div class="node agent"><b>Muse-style</b><span>Web, Meta catalog, Marketplace</span><em>Claude web search</em></div>
-        <div class="node agent"><b>Instinct-style</b><span>Shopify stores, Shop Pay</span><em>Claude web search</em></div>
-        <div class="node agent"><b>Open web</b><span>Major retailers, lowest price</span><em>Claude web search</em></div>
+        <div class="node agent"><img src="/static/logos/muse.png" alt="" width="34" height="34" style="border-radius:8px"><b>Muse</b><span>Web, Meta catalog, Marketplace</span></div>
+        <div class="node agent"><img src="/static/logos/instinct.png" alt="" width="34" height="34" style="border-radius:8px"><b>Instinct</b><span>Shopify stores, Shop Pay</span></div>
+        <div class="node agent"><span style="display:inline-grid;place-items:center;width:34px;height:34px;border-radius:8px;background:var(--accent);color:#fff;font-weight:800">W</span><b>Open web</b><span>Major retailers, lowest price</span></div>
       </div>
       <div class="fan in"></div>
       <div class="node"><b>Rerank every bid</b><span>Fit to request and rules</span><em>Superlinked SIE</em></div>

@@ -88,34 +88,58 @@
   .profile dt { color:var(--mute); } .profile dd { margin:0; font-weight:600; }
   ol.steps { margin:10px 0 0; padding-left:18px; font-size:12px; color:var(--mute); }
   model-viewer::part(default-progress-bar) { display:none; }
+
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+  .bossnode { margin:0 auto; max-width:620px; text-align:center; background:var(--card); border:2px solid var(--accent);
+    border-radius:20px; padding:14px 22px 16px; box-shadow:var(--lift-hi); }
+  .bossface { width:110px; height:120px; margin:-4px auto 0; display:block; }
+  .cmd { display:flex; gap:8px; align-items:center; border-bottom:2px solid var(--line); padding:4px 2px; }
+  .cmd:focus-within { border-color:var(--accent); }
+  .cmd input { flex:1; border:none; background:transparent; box-shadow:none; font-size:18px; font-weight:600; padding:8px 2px; }
+  .cmd input:focus { outline:none; background:transparent; }
+  .rulesfold { margin-top:8px; text-align:left; font-size:13px; color:var(--mute); }
+  .rulesfold summary { cursor:pointer; font-weight:600; }
+  .rulesfold input { margin-top:6px; border:none; border-bottom:1px solid var(--line); border-radius:0; background:transparent; box-shadow:none; padding:6px 2px; }
+  .wire.down { width:2px; height:26px; background:var(--accent); margin:0 auto; position:relative; }
+  .wire.down::after { content:""; position:absolute; left:-5px; bottom:-7px; border:6px solid transparent; border-top-color:var(--accent); }
+  .fanout, .fanin { width:68%; height:22px; margin:0 auto; border:2px solid var(--accent); }
+  .fanout { border-bottom:none; border-radius:12px 12px 0 0; margin-top:8px; }
+  .fanin { border-top:none; border-radius:0 0 12px 12px; margin-bottom:0; }
+  .lanes { margin:0; }
+  .lane h3 .mark { width:28px; height:28px; border-radius:8px; flex:none; }
+  .lane h3 .mark.web { display:grid; place-items:center; background:var(--accent); color:#fff; font-size:14px; }
+  .lane h3 .nm { flex:1; }
+  .lane h3 { justify-content:flex-start; }
+  .decision { margin-top:8px; border:2px solid var(--accent); }
   .hint { font-size:13px; color:var(--mute); margin:6px 0 0; }
 </style>
 </head>
 <body>
 <header>
-  <model-viewer src="/static/boss.glb" alt="Boss" auto-rotate rotation-per-second="20deg" interaction-prompt="none"
-    disable-zoom style="width:64px;height:64px;align-self:center"></model-viewer>
   <h1><a href="/" style="color:inherit;text-decoration:none">Boss</a></h1>
-  <p style="flex:1">Boss runs your buying agents on its own. They compete, Boss picks, shows why, and learns when you overrule it.</p>
+  <p style="flex:1">runs Muse, Instinct and the open web for you.</p>
   <a href="/how-it-works" style="color:var(--accent);font-weight:600;text-decoration:none">How it works</a>
 </header>
 <main>
   <section>
-    <div class="card ask">
-      <label for="request">What do you need?</label>
-      <textarea id="request"></textarea>
-      <p class="hint">Say the item, size or model, budget, and when you need it.</p>
-      <label for="rules">Your rules</label>
-      <textarea id="rules"></textarea>
-      <div class="row"><button id="go">Send the agents</button><span id="status" class="small"></span><span id="error"></span></div>
+    <div class="bossnode">
+      <model-viewer src="/static/boss.glb" alt="" auto-rotate rotation-per-second="20deg" interaction-prompt="none" disable-zoom class="bossface"></model-viewer>
+      <div class="cmd">
+        <label for="request" class="sr">Order for Boss</label>
+        <input id="request" type="text" autocomplete="off" spellcheck="false" aria-describedby="cmdhint">
+        <button id="go">Send</button>
+      </div>
+      <details class="rulesfold"><summary>Rules</summary><label for="rules" class="sr">Your rules</label><input id="rules" type="text"></details>
+      <p id="cmdhint" class="hint">Item, size, budget, and when you need it.</p>
+      <div class="row" style="justify-content:center;margin-top:4px"><span id="status" class="small"></span><span id="error"></span></div>
     </div>
+    <div class="wire down"></div>
+    <div class="fanout"></div>
+    <div class="lanes" id="lanes"></div>
+    <div class="fanin"></div>
+    <div class="wire down"></div>
 
-    <div class="card">
-      <h2>Agents</h2>
-      <div class="lanes" id="lanes"></div>
-    </div>
-
-    <div class="card" id="decisionCard" hidden>
+    <div class="card decision" id="decisionCard" hidden>
       <h2>Boss decision</h2>
       <p id="summary"></p>
       <p id="notice" class="small" hidden></p>
@@ -150,7 +174,9 @@
 <script>
 const $ = id => document.getElementById(id);
 // Display names for the three buying agents. Backend ids stay A, B, C.
-const NAMES = { A: 'Muse-style', B: 'Instinct-style', C: 'Open web' };
+const NAMES = { A: 'Muse', B: 'Instinct', C: 'Open web' };
+const SHORT = { A: 'Web, Meta catalog, Marketplace', B: 'Shopify stores, Shop Pay', C: 'Major retailers, lowest price' };
+const LOGOS = { A: '/static/logos/muse.png', B: '/static/logos/instinct.png' };
 const nm = id => NAMES[id] || id;
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 let agents = {}, board = {}, perAgent = {}, runId = null, trail = [], filter = 'all', poll = null, winner = null, pendingConfirm = false;
@@ -209,9 +235,10 @@ function renderLanes() {
     const state = verdictEv ? { bid_won:'win', bid_rejected:'reject', bid_runner_up:'runner up' }[verdictEv.step]
                 : bid ? 'bid in' : evs.length ? 'running' : 'idle';
     const lane = el('div', 'lane' + (state === 'win' ? ' win' : state === 'reject' ? ' reject' : ''));
-    const h = el('h3', null, nm(name));
+    const h = el('h3', null); const mark = LOGOS[name] ? Object.assign(el('img', 'mark'), { src: LOGOS[name], alt: '' }) : el('span', 'mark web', 'W');
+    h.append(mark, el('span', 'nm', nm(name)));
     h.append(el('span', 'pill ' + (state === 'win' ? 'win' : state === 'reject' ? 'reject' : state === 'running' ? 'running' : ''), state));
-    lane.append(h, el('div', 'small', strategy));
+    lane.append(h, el('div', 'small', SHORT[name] || strategy));
     const rec = board[name] || {}, an = perAgent[name] || {};
     const prof = el('dl', 'profile');
     [['Trust', rec.trust == null ? 'new' : rec.trust + '%'], ['Bids', rec.bids ?? 0], ['Wins', rec.wins ?? 0],
@@ -341,6 +368,8 @@ $('overrule').onclick = async () => {
   } catch (err) { $('error').textContent = err.message; }
 };
 $('reason').oninput = () => { $('error').textContent = ''; };
+$('request').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
+$('rules').onkeydown = e => { if (e.key === 'Enter') $('go').click(); };
 
 (async () => {
   const state = await api('/state');
