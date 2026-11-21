@@ -161,7 +161,7 @@ def scoreboard() -> list[dict]:
     board = {n: {"agent": n, "bids": 0, "wins": 0, "rejected": 0, "overruled": 0} for n in AGENTS}
     if not S2_URL:
         for e in _memory_events:
-            if e["step"] in SCORE_STEPS and e["actor"] in board:
+            if e["step"] in SCORE_STEPS and e["actor"] in board and not (e["step"] == "bid_submitted" and e["payload"].get("error")):
                 board[e["actor"]][SCORE_STEPS[e["step"]]] += 1
     else:
         with _db() as conn, conn.cursor() as cur:
@@ -173,6 +173,12 @@ def scoreboard() -> list[dict]:
             for actor, step, n in cur.fetchall():
                 if actor in board:
                     board[actor][SCORE_STEPS[step]] = int(n)
+            # a failed agent call is logged as bid_submitted with an error; it is not a bid
+            cur.execute("SELECT actor, COUNT(*) FROM events WHERE step = 'bid_submitted' "
+                        "AND JSON_EXTRACT_STRING(payload, 'error') IS NOT NULL GROUP BY actor")
+            for actor, n in cur.fetchall():
+                if actor in board:
+                    board[actor]["bids"] = max(board[actor]["bids"] - int(n), 0)
     for row in board.values():
         # trust = wins the shopper did not overrule, as a share of all bids
         row["trust"] = round(100 * max(row["wins"] - row["overruled"], 0) / row["bids"]) if row["bids"] else None
@@ -235,7 +241,7 @@ def _analytics_sql() -> dict:
         cur.execute(
             "SELECT e.actor, COUNT(*), AVG(JSON_EXTRACT_DOUBLE(e.payload, 'duration_ms')) / 1000, "
             f"AVG(NULLIF({price.format('e')}, 0)) "
-            "FROM events e WHERE e.step = 'bid_submitted' GROUP BY e.actor"
+            "FROM events e WHERE e.step = 'bid_submitted' AND JSON_EXTRACT_STRING(e.payload, 'error') IS NULL GROUP BY e.actor"
         )
         rows = {a: (int(n), secs, usd) for a, n, secs, usd in cur.fetchall()}
         per_agent = [{
@@ -584,6 +590,9 @@ def home():
 
 @app.post("/shop")
 async def shop(body: ShopRequest):
+    if not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("ANTHROPIC_AUTH_TOKEN"):
+        raise HTTPException(503, "Boss can't send the agents: ANTHROPIC_API_KEY is not set in .env. "
+                                 "Add a key from console.anthropic.com (it starts with sk-ant-api03-) and restart.")
     run_id = body.run_id if body.run_id and re.fullmatch(r"[a-z0-9]{6,32}", body.run_id) else uuid.uuid4().hex[:12]
     log(run_id, "request_received", "user", {"request": body.request, "rules": body.rules})
     await track("request_received", {"run_id": run_id})
